@@ -1,15 +1,17 @@
 using Microsoft.AspNetCore.Mvc;
+using ShoppingCart.Core.Interfaces;
+using ShoppingCart.Core.Models;
 
 namespace ShoppingCart.Api.Controllers;
 
 [ApiController]
-[Route("[controller]")]
-public class ShoppingCartController : ControllerBase
+[Route("api/cart")]
+public class ShoppingCartController(ICartService _cartService) : ControllerBase
 {
-    private readonly ILogger<ShoppingCartController> _logger;
-
-    public ShoppingCartController(ILogger<ShoppingCartController> logger)
+    [HttpPost("add-item")]
+    public async Task<IActionResult> AddItem([FromBody] AddCartItemModel model, CancellationToken ct)
     {
-        _logger = logger;
+        await _cartService.AddCartItemAsync(model, ct);
+        return Ok();
     }
 }

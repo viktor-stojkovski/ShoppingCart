@@ -12,38 +12,8 @@ namespace ShoppingCart.Core.Services;
 
 public class CartService(AppDbContext _dbContext, ICartRepository _cartRepository, IProductRepository _productRepository) : ICartService
 {
-    public async Task<Cart> GetOrCreateActiveCartAsync(Guid userId, string currency, CancellationToken ct = default)
-    {
-        var cart = await _cartRepository.GetActiveCartByUserIdWithItemsAsync(userId, ct);
-
-        if (cart != null)
-        {
-            return cart;
-        }
-
-        cart = new Cart
-        {
-            Id = Guid.NewGuid(),
-            UserId = userId,
-            Currency = currency,
-            CreatedOnUtc = DateTime.UtcNow,
-            UpdatedOnUtc = DateTime.UtcNow,
-            Status = CartStatusEnum.Active
-        };
-
-        await _cartRepository.AddAsync(cart, ct);
-        await _cartRepository.SaveChangesAsync(ct);
-
-        return cart;
-    }
-
     public async Task AddCartItemAsync(AddCartItemModel model, CancellationToken ct = default)
     {
-        if (model.Quantity <= 0)
-        {
-            throw new InvalidOperationException("Quantity must be greater than zero.");
-        }
-
         await using var transaction = await _dbContext.Database.BeginTransactionAsync(ct);
 
         var cart = await GetOrCreateActiveCartAsync(model.UserId, model.Currency, ct);
@@ -65,7 +35,6 @@ public class CartService(AppDbContext _dbContext, ICartRepository _cartRepositor
         {
             cartItem = new CartItem
             {
-                Id = Guid.NewGuid(),
                 CartId = cart.Id,
                 ProductId = product.Id,
                 Quantity = model.Quantity,
@@ -88,6 +57,30 @@ public class CartService(AppDbContext _dbContext, ICartRepository _cartRepositor
 
         await _cartRepository.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
+    }
+
+    private async Task<Cart> GetOrCreateActiveCartAsync(Guid userId, string currency, CancellationToken ct = default)
+    {
+        var cart = await _cartRepository.GetActiveCartByUserIdWithItemsAsync(userId, ct);
+
+        if (cart != null)
+        {
+            return cart;
+        }
+
+        cart = new Cart
+        {
+            UserId = userId,
+            Currency = currency,
+            CreatedOnUtc = DateTime.UtcNow,
+            UpdatedOnUtc = DateTime.UtcNow,
+            Status = CartStatusEnum.Active
+        };
+
+        await _cartRepository.AddAsync(cart, ct);
+        await _cartRepository.SaveChangesAsync(ct);
+
+        return cart;
     }
 
     public async Task<CartDto> GetActiveCartAsync(Guid userId, CancellationToken ct = default)
