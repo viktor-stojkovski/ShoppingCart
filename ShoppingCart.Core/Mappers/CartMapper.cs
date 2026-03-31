@@ -1,6 +1,7 @@
 ﻿using ShoppingCart.Core.Constants;
 using ShoppingCart.Core.Dtos;
 using ShoppingCart.Data.Entities;
+using ShoppingCart.Data.Enums;
 
 namespace ShoppingCart.Core.Mappers;
 
@@ -28,7 +29,7 @@ public static class CartMapper
             Id = Guid.Empty,
             UserId = userID,
             Currency = CurrencyConstants.DefaultCurrency,
-            Status = Data.Enums.CartStatusEnum.Active,
+            Status = CartStatusEnum.Active,
             CartItems = [],
             TotalAmount = 0m
         };

@@ -37,7 +37,7 @@ public class CartService(AppDbContext _dbContext, ICartRepository _cartRepositor
         return cart;
     }
 
-    public async Task AddItemAsync(AddCartItemModel model, CancellationToken ct = default)
+    public async Task AddCartItemAsync(AddCartItemModel model, CancellationToken ct = default)
     {
         if (model.Quantity <= 0)
         {
@@ -107,8 +107,152 @@ public class CartService(AppDbContext _dbContext, ICartRepository _cartRepositor
             .Where(p => productIds.Contains(p.Id))
             .ToListAsync(ct);
 
-        var cartDto  = cart.ToDtoModel(products);
+        var cartDto = cart.ToDtoModel(products);
 
         return cartDto;
+    }
+
+    public async Task UpdateCartItemQuantityAsync(UpdateCartItemQuantityModel model, CancellationToken ct = default)
+    {
+        if (model.Quantity < 0)
+        {
+            throw new InvalidOperationException("Quantity cannot be negative.");
+        }
+
+        var cart = await _cartRepository.GetActiveCartByUserIdWithItemsAsync(model.UserId, ct);
+
+        if (cart == null)
+        {
+            throw new InvalidOperationException("Active cart not found.");
+        }
+
+        var cartItem = cart.CartItems.FirstOrDefault(x => x.Id == model.CartItemId);
+
+        if (cartItem == null)
+        {
+            throw new InvalidOperationException("Cart item not found.");
+        }
+
+        if (model.Quantity == 0)
+        {
+            cart.CartItems.Remove(cartItem);
+        }
+        else
+        {
+            var product = await _productRepository.GetByIdAsync(cartItem.ProductId, ct);
+
+            if (product == null || !product.IsActive)
+            {
+                cart.CartItems.Remove(cartItem);
+                cart.UpdatedOnUtc = DateTime.UtcNow;
+                await _cartRepository.SaveChangesAsync(ct);
+
+                throw new InvalidOperationException("Product is no longer available and was removed from the cart.");
+            }
+
+            if (model.Quantity > product.StockQuantity)
+            {
+                throw new InvalidOperationException("Insufficient stock.");
+            }
+
+            cartItem.Quantity = model.Quantity;
+        }
+
+        cart.UpdatedOnUtc = DateTime.UtcNow;
+
+        await _cartRepository.SaveChangesAsync(ct);
+    }
+
+    public async Task RemoveCartItemAsync(RemoveCartItemModel model, CancellationToken ct = default)
+    {
+        var cart = await _cartRepository.GetByIdWithItemsAsync(model.CartId, ct);
+
+        if (cart == null)
+        {
+            throw new InvalidOperationException("Cart not found.");
+        }
+
+        var cartItem = cart.CartItems.FirstOrDefault(x => x.Id == model.CartItemId);
+
+        if (cartItem == null)
+        {
+            throw new InvalidOperationException("Cart item not found.");
+        }
+
+        cart.CartItems.Remove(cartItem);
+
+        if (cart.CartItems.Count == 0)
+        {
+            _cartRepository.Delete(cart);
+        }
+        else
+        {
+            cart.UpdatedOnUtc = DateTime.UtcNow;
+        }
+
+        await _cartRepository.SaveChangesAsync(ct);
+    }
+
+    public async Task CheckoutCartAsync(CheckoutCartModel model, CancellationToken ct = default)
+    {
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync(ct);
+
+        var cart = await _cartRepository.GetByIdWithItemsAsync(model.CartId, ct);
+
+        if (cart == null)
+        {
+            throw new InvalidOperationException("Cart not found.");
+        }
+
+        if (cart.UserId != model.UserId)
+        {
+            throw new InvalidOperationException("Invalid cart.");
+        }
+
+        if (cart.Status != CartStatusEnum.Active)
+        {
+            throw new InvalidOperationException("Cart is not active.");
+        }
+
+        if (cart.CartItems.Count == 0)
+        {
+            throw new InvalidOperationException("Cart is empty.");
+        }
+
+        var productIds = cart.CartItems
+            .Select(x => x.ProductId)
+            .ToList();
+
+        var products = await _productRepository.Query()
+            .Where(p => productIds.Contains(p.Id))
+            .ToListAsync(ct);
+
+        var productDict = products.ToDictionary(x => x.Id);
+
+        foreach (var item in cart.CartItems)
+        {
+            if (!productDict.TryGetValue(item.ProductId, out var product))
+            {
+                throw new InvalidOperationException("Product not found during checkout.");
+            }
+
+            if (!product.IsActive)
+            {
+                throw new InvalidOperationException($"Product '{product.Name}' is no longer available.");
+            }
+
+            if (item.Quantity > product.StockQuantity)
+            {
+                throw new InvalidOperationException($"Insufficient stock for product '{product.Name}'.");
+            }
+
+            product.StockQuantity -= item.Quantity;
+        }
+
+        cart.Status = CartStatusEnum.CheckedOut;
+        cart.UpdatedOnUtc = DateTime.UtcNow;
+
+        await _cartRepository.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
     }
 }
