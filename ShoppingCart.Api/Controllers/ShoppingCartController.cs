@@ -1,15 +1,46 @@
 using Microsoft.AspNetCore.Mvc;
+using ShoppingCart.Core.Dtos;
+using ShoppingCart.Core.Interfaces;
+using ShoppingCart.Core.Models;
 
 namespace ShoppingCart.Api.Controllers;
 
 [ApiController]
-[Route("[controller]")]
-public class ShoppingCartController : ControllerBase
+[Route("api/cart")]
+public class ShoppingCartController(ICartService _cartService) : ControllerBase
 {
-    private readonly ILogger<ShoppingCartController> _logger;
-
-    public ShoppingCartController(ILogger<ShoppingCartController> logger)
+    [HttpPost("add-item")]
+    public async Task<IActionResult> AddItem([FromBody] AddCartItemModel model, CancellationToken ct)
     {
-        _logger = logger;
+        await _cartService.AddCartItemAsync(model, ct);
+        return NoContent();
+    }
+
+    [HttpGet("{userId:guid}")]
+    public async Task<ActionResult<CartDto>> GetActiveCart(Guid userId, CancellationToken ct)
+    {
+        var cart = await _cartService.GetActiveCartAsync(userId, ct);
+        return Ok(cart);
+    }
+
+    [HttpPut("item")]
+    public async Task<IActionResult> UpdateItemQuantity([FromBody] UpdateCartItemQuantityModel model, CancellationToken ct)
+    {
+        await _cartService.UpdateCartItemQuantityAsync(model, ct);
+        return NoContent();
+    }
+
+    [HttpDelete("item")]
+    public async Task<IActionResult> RemoveItem([FromBody] RemoveCartItemModel model, CancellationToken ct)
+    {
+        await _cartService.RemoveCartItemAsync(model, ct);
+        return NoContent();
+    }
+
+    [HttpPost("checkout")]
+    public async Task<IActionResult> CheckoutCart([FromBody] CheckoutCartModel model, CancellationToken ct)
+    {
+        await _cartService.CheckoutCartAsync(model, ct);
+        return NoContent();
     }
 }
