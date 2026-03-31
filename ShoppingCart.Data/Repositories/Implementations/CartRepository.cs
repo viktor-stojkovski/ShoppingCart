@@ -26,6 +26,13 @@ public class CartRepository(AppDbContext _dbContext) : ICartRepository
             .FirstOrDefaultAsync(x => x.UserId == userId && x.Status == CartStatusEnum.Active, ct);
     }
 
+    public async Task<Cart?> GetActiveCartByUserIdWithItemsAsync(Guid userId, CancellationToken ct = default)
+    {
+        return await _dbContext.Carts
+            .Include(x => x.CartItems)
+            .FirstOrDefaultAsync(x => x.UserId == userId && x.Status == CartStatusEnum.Active, ct);
+    }
+
     public async Task AddAsync(Cart cart, CancellationToken ct = default)
     {
         await _dbContext.Carts.AddAsync(cart, ct);

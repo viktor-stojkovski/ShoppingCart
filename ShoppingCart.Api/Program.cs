@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using ShoppingCart.Core;
 using ShoppingCart.Data;
 using ShoppingCart.Data.Repositories;
 
@@ -12,6 +13,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 RepositoriesInitializer.Initialize(builder.Services);
+CoreServicesInitializer.Initialize(builder.Services);
 
 var app = builder.Build();
 
