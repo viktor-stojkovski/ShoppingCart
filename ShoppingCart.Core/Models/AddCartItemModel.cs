@@ -4,10 +4,7 @@ namespace ShoppingCart.Core.Models;
 
 public class AddCartItemModel
 {
-    [Required(ErrorMessage = "User identifier is required")]
     public Guid UserId { get; set; }
-
-    [Required(ErrorMessage = "Product identifier is required")]
     public Guid ProductId { get; set; }
 
     [Range(1, int.MaxValue, ErrorMessage = "Quantity must be at least 1")]
