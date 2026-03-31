@@ -16,47 +16,55 @@ public class CartService(AppDbContext _dbContext, ICartRepository _cartRepositor
     {
         await using var transaction = await _dbContext.Database.BeginTransactionAsync(ct);
 
-        var cart = await GetOrCreateActiveCartAsync(model.UserId, model.Currency, ct);
-        var product = await _productRepository.GetByIdAsync(model.ProductId, ct);
-
-        if (product == null)
+        try
         {
-            throw new InvalidOperationException("Product not found.");
-        }
+            var cart = await GetOrCreateActiveCartAsync(model.UserId, model.Currency, ct);
+            var product = await _productRepository.GetByIdAsync(model.ProductId, ct);
 
-        if (!product.IsActive)
-        {
-            throw new InvalidOperationException("Product is not active.");
-        }
-
-        var cartItem = cart.CartItems.FirstOrDefault(x => x.ProductId == model.ProductId);
-
-        if (cartItem == null)
-        {
-            cartItem = new CartItem
+            if (product == null)
             {
-                CartId = cart.Id,
-                ProductId = product.Id,
-                Quantity = model.Quantity,
-                PriceWhenAdded = product.Price
-            };
+                throw new InvalidOperationException("Product not found.");
+            }
 
-            cart.CartItems.Add(cartItem);
+            if (!product.IsActive)
+            {
+                throw new InvalidOperationException("Product is not active.");
+            }
+
+            var cartItem = cart.CartItems.FirstOrDefault(x => x.ProductId == model.ProductId);
+
+            if (cartItem == null)
+            {
+                cartItem = new CartItem
+                {
+                    CartId = cart.Id,
+                    ProductId = product.Id,
+                    Quantity = model.Quantity,
+                    PriceWhenAdded = product.Price
+                };
+
+                cart.CartItems.Add(cartItem);
+            }
+            else
+            {
+                cartItem.Quantity += model.Quantity;
+            }
+
+            if (cartItem.Quantity > product.StockQuantity)
+            {
+                throw new InvalidOperationException("Insufficient stock.");
+            }
+
+            cart.UpdatedOnUtc = DateTime.UtcNow;
+
+            await _cartRepository.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
         }
-        else
+        catch
         {
-            cartItem.Quantity += model.Quantity;
+            await transaction.RollbackAsync(ct);
+            throw;
         }
-
-        if (cartItem.Quantity > product.StockQuantity)
-        {
-            throw new InvalidOperationException("Insufficient stock.");
-        }
-
-        cart.UpdatedOnUtc = DateTime.UtcNow;
-
-        await _cartRepository.SaveChangesAsync(ct);
-        await transaction.CommitAsync(ct);
     }
 
     private async Task<Cart> GetOrCreateActiveCartAsync(Guid userId, string currency, CancellationToken ct = default)
@@ -107,53 +115,59 @@ public class CartService(AppDbContext _dbContext, ICartRepository _cartRepositor
 
     public async Task UpdateCartItemQuantityAsync(UpdateCartItemQuantityModel model, CancellationToken ct = default)
     {
-        if (model.Quantity < 0)
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync(ct);
+
+        try
         {
-            throw new InvalidOperationException("Quantity cannot be negative.");
-        }
+            var cart = await _cartRepository.GetActiveCartByUserIdWithItemsAsync(model.UserId, ct);
 
-        var cart = await _cartRepository.GetActiveCartByUserIdWithItemsAsync(model.UserId, ct);
+            if (cart == null)
+            {
+                throw new InvalidOperationException("Active cart not found.");
+            }
 
-        if (cart == null)
-        {
-            throw new InvalidOperationException("Active cart not found.");
-        }
+            var cartItem = cart.CartItems.FirstOrDefault(x => x.Id == model.CartItemId);
 
-        var cartItem = cart.CartItems.FirstOrDefault(x => x.Id == model.CartItemId);
+            if (cartItem == null)
+            {
+                throw new InvalidOperationException("Cart item not found.");
+            }
 
-        if (cartItem == null)
-        {
-            throw new InvalidOperationException("Cart item not found.");
-        }
-
-        if (model.Quantity == 0)
-        {
-            cart.CartItems.Remove(cartItem);
-        }
-        else
-        {
-            var product = await _productRepository.GetByIdAsync(cartItem.ProductId, ct);
-
-            if (product == null || !product.IsActive)
+            if (model.Quantity == 0)
             {
                 cart.CartItems.Remove(cartItem);
-                cart.UpdatedOnUtc = DateTime.UtcNow;
-                await _cartRepository.SaveChangesAsync(ct);
-
-                throw new InvalidOperationException("Product is no longer available and was removed from the cart.");
             }
-
-            if (model.Quantity > product.StockQuantity)
+            else
             {
-                throw new InvalidOperationException("Insufficient stock.");
+                var product = await _productRepository.GetByIdAsync(cartItem.ProductId, ct);
+
+                if (product == null || !product.IsActive)
+                {
+                    cart.CartItems.Remove(cartItem);
+                    cart.UpdatedOnUtc = DateTime.UtcNow;
+                    await _cartRepository.SaveChangesAsync(ct);
+
+                    throw new InvalidOperationException("Product is no longer available and was removed from the cart.");
+                }
+
+                if (model.Quantity > product.StockQuantity)
+                {
+                    throw new InvalidOperationException("Insufficient stock.");
+                }
+
+                cartItem.Quantity = model.Quantity;
             }
 
-            cartItem.Quantity = model.Quantity;
+            cart.UpdatedOnUtc = DateTime.UtcNow;
+
+            await _cartRepository.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
         }
-
-        cart.UpdatedOnUtc = DateTime.UtcNow;
-
-        await _cartRepository.SaveChangesAsync(ct);
+        catch
+        {
+            await transaction.RollbackAsync(ct);
+            throw;
+        }
     }
 
     public async Task RemoveCartItemAsync(RemoveCartItemModel model, CancellationToken ct = default)

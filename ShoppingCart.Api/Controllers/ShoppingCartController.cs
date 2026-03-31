@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using ShoppingCart.Core.Dtos;
 using ShoppingCart.Core.Interfaces;
 using ShoppingCart.Core.Models;
 
@@ -12,6 +13,20 @@ public class ShoppingCartController(ICartService _cartService) : ControllerBase
     public async Task<IActionResult> AddItem([FromBody] AddCartItemModel model, CancellationToken ct)
     {
         await _cartService.AddCartItemAsync(model, ct);
-        return Ok();
+        return NoContent();
+    }
+
+    [HttpGet("get/{userId:guid}")]
+    public async Task<ActionResult<CartDto>> GetActiveCart(Guid userId, CancellationToken ct)
+    {
+        var cart = await _cartService.GetActiveCartAsync(userId, ct);
+        return Ok(cart);
+    }
+
+    [HttpPut("item-quantity")]
+    public async Task<IActionResult> UpdateItemQuantity([FromBody] UpdateCartItemQuantityModel model, CancellationToken ct)
+    {
+        await _cartService.UpdateCartItemQuantityAsync(model, ct);
+        return NoContent();
     }
 }
