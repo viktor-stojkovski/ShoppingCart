@@ -13,6 +13,8 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+builder.Services.AddHealthChecks().AddDbContextCheck<AppDbContext>();
+
 RepositoriesInitializer.Initialize(builder.Services);
 CoreServicesInitializer.Initialize(builder.Services);
 
@@ -32,5 +34,7 @@ app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();
+
+app.MapHealthChecks("/health");
 
 app.Run();
