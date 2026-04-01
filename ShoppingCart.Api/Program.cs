@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using ShoppingCart.Api.Middleware;
 using ShoppingCart.Core;
 using ShoppingCart.Data;
 using ShoppingCart.Data.Repositories;
@@ -25,6 +26,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 app.UseAuthorization();
 
