@@ -33,6 +33,7 @@ public class ProductConfiguration : IEntityTypeConfiguration<Product>
         builder.Property(x => x.IsActive)
             .IsRequired();
 
+        // only for demo purposes we seed some products data
         builder.HasData(ProductSeedData.GetProducts());
     }
 }

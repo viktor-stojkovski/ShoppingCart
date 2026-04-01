@@ -20,6 +20,13 @@ CoreServicesInitializer.Initialize(builder.Services);
 
 var app = builder.Build();
 
+// only for demo purposes we apply migrations on app startup together with seeding products data
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    await dbContext.Database.MigrateAsync();
+}
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
