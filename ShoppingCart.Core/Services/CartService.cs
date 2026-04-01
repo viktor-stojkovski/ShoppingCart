@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using ShoppingCart.Core.Dtos;
+using ShoppingCart.Core.Exceptions;
 using ShoppingCart.Core.Interfaces;
 using ShoppingCart.Core.Mappers;
 using ShoppingCart.Core.Models;
@@ -23,12 +24,12 @@ public class CartService(AppDbContext _dbContext, ICartRepository _cartRepositor
 
             if (product == null)
             {
-                throw new InvalidOperationException("Product not found.");
+                throw new NotFoundException("Product not found.");
             }
 
             if (!product.IsActive)
             {
-                throw new InvalidOperationException("Product is not active.");
+                throw new ConflictException("Product is not active.");
             }
 
             var cartItem = cart.CartItems.FirstOrDefault(x => x.ProductId == model.ProductId);
@@ -52,7 +53,7 @@ public class CartService(AppDbContext _dbContext, ICartRepository _cartRepositor
 
             if (cartItem.Quantity > product.StockQuantity)
             {
-                throw new InvalidOperationException("Insufficient stock.");
+                throw new ConflictException("Insufficient stock.");
             }
 
             cart.UpdatedOnUtc = DateTime.UtcNow;
@@ -119,14 +120,14 @@ public class CartService(AppDbContext _dbContext, ICartRepository _cartRepositor
 
         if (cart == null)
         {
-            throw new InvalidOperationException("Active cart not found.");
+            throw new NotFoundException("Active cart not found.");
         }
 
         var cartItem = cart.CartItems.FirstOrDefault(x => x.Id == model.CartItemId);
 
         if (cartItem == null)
         {
-            throw new InvalidOperationException("Cart item not found.");
+            throw new NotFoundException("Cart item not found.");
         }
 
         if (model.Quantity == 0)
@@ -143,12 +144,12 @@ public class CartService(AppDbContext _dbContext, ICartRepository _cartRepositor
                 cart.UpdatedOnUtc = DateTime.UtcNow;
                 await _cartRepository.SaveChangesAsync(ct);
 
-                throw new InvalidOperationException("Product is no longer available and was removed from the cart.");
+                throw new NotFoundException("Product is no longer available and was removed from the cart.");
             }
 
             if (model.Quantity > product.StockQuantity)
             {
-                throw new InvalidOperationException("Insufficient stock.");
+                throw new ConflictException("Insufficient stock.");
             }
 
             cartItem.Quantity = model.Quantity;
@@ -165,14 +166,14 @@ public class CartService(AppDbContext _dbContext, ICartRepository _cartRepositor
 
         if (cart == null)
         {
-            throw new InvalidOperationException("Cart not found.");
+            throw new NotFoundException("Cart not found.");
         }
 
         var cartItem = cart.CartItems.FirstOrDefault(x => x.Id == model.CartItemId);
 
         if (cartItem == null)
         {
-            throw new InvalidOperationException("Cart item not found.");
+            throw new NotFoundException("Cart item not found.");
         }
 
         cart.CartItems.Remove(cartItem);
@@ -195,22 +196,22 @@ public class CartService(AppDbContext _dbContext, ICartRepository _cartRepositor
 
         if (cart == null)
         {
-            throw new InvalidOperationException("Cart not found.");
+            throw new NotFoundException("Cart not found.");
         }
 
         if (cart.UserId != model.UserId)
         {
-            throw new InvalidOperationException("Invalid cart.");
+            throw new ForbiddenException("Invalid cart.");
         }
 
         if (cart.Status != CartStatusEnum.Active)
         {
-            throw new InvalidOperationException("Cart is not active.");
+            throw new ConflictException("Cart is not active.");
         }
 
         if (cart.CartItems.Count == 0)
         {
-            throw new InvalidOperationException("Cart is empty.");
+            throw new ConflictException("Cart is empty.");
         }
 
         var productIds = cart.CartItems
@@ -231,17 +232,17 @@ public class CartService(AppDbContext _dbContext, ICartRepository _cartRepositor
             {
                 if (!productsDictionary.TryGetValue(item.ProductId, out var product))
                 {
-                    throw new InvalidOperationException("Product not found during checkout.");
+                    throw new NotFoundException("Product not found during checkout.");
                 }
 
                 if (!product.IsActive)
                 {
-                    throw new InvalidOperationException($"Product '{product.Name}' is no longer available.");
+                    throw new NotFoundException($"Product '{product.Name}' is no longer available.");
                 }
 
                 if (item.Quantity > product.StockQuantity)
                 {
-                    throw new InvalidOperationException($"Insufficient stock for product '{product.Name}'.");
+                    throw new ConflictException($"Insufficient stock for product '{product.Name}'.");
                 }
 
                 product.StockQuantity -= item.Quantity;

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using ShoppingCart.Api.Middleware;
 using ShoppingCart.Core;
 using ShoppingCart.Data;
 using ShoppingCart.Data.Repositories;
@@ -11,6 +12,8 @@ builder.Services.AddSwaggerGen();
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+builder.Services.AddHealthChecks().AddDbContextCheck<AppDbContext>();
 
 RepositoriesInitializer.Initialize(builder.Services);
 CoreServicesInitializer.Initialize(builder.Services);
@@ -26,8 +29,12 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+app.UseMiddleware<ExceptionHandlingMiddleware>();
+
 app.UseAuthorization();
 
 app.MapControllers();
+
+app.MapHealthChecks("/health");
 
 app.Run();
